@@ -2,19 +2,20 @@ package com.techchallenge.lambda.authorizer.infrastructure.persistence.repositor
 
 import com.techchallenge.lambda.authorizer.domain.model.Cliente;
 import com.techchallenge.lambda.authorizer.domain.repositories.ClienteRepository;
-import com.techchallenge.lambda.authorizer.infrastructure.persistence.mappers.ClienteJpaMapper;
-import lombok.RequiredArgsConstructor;
 import com.techchallenge.lambda.authorizer.domain.model.valueobjects.CNPJ;
 import com.techchallenge.lambda.authorizer.domain.model.valueobjects.CPF;
-import org.springframework.stereotype.Repository;
+import com.techchallenge.lambda.authorizer.infrastructure.persistence.mappers.ClienteJpaMapper;
 
 import java.util.Optional;
 
-@Repository
-@RequiredArgsConstructor
 public class ClienteRepositoryImpl implements ClienteRepository {
     private final ClienteJpaRepository jpaRepository;
     private final ClienteJpaMapper mapper;
+
+    public ClienteRepositoryImpl(ClienteJpaRepository jpaRepository, ClienteJpaMapper mapper) {
+        this.jpaRepository = jpaRepository;
+        this.mapper = mapper;
+    }
 
     @Override
     public Optional<Cliente> findByCPF(CPF cpf) {

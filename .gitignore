@@ -30,3 +30,15 @@ terraform.rc
 *tfplan*
 
 .idea/
+
+# Java/Maven
+target/
+*.jar
+*.class
+.mvn/
+mvnw
+mvnw.cmd
+
+# IDE
+.vscode/
+*.iml

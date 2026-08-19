@@ -6,34 +6,55 @@ import com.techchallenge.lambda.authorizer.application.usecases.ports.output.Cli
 import com.techchallenge.lambda.authorizer.application.usecases.responses.AuthResponse;
 import com.techchallenge.lambda.authorizer.domain.model.Cliente;
 import com.techchallenge.lambda.authorizer.infrastructure.security.JwtTokenUtil;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.stereotype.Service;
+import org.mindrot.jbcrypt.BCrypt;
 
 import java.util.Optional;
 
-@Service
-@RequiredArgsConstructor
 public class AutenticarUsuarioUseCase implements AutenticarUsuarioInput {
-    private final AuthenticationManager authenticationManager;
     private final JwtTokenUtil jwtTokenUtil;
     private final ClienteGateway clienteGateway;
+
+    private final String adminUsername;
+    private final String adminPasswordHash;
+
+    public AutenticarUsuarioUseCase(JwtTokenUtil jwtTokenUtil, ClienteGateway clienteGateway) {
+        this.jwtTokenUtil = jwtTokenUtil;
+        this.clienteGateway = clienteGateway;
+
+        // Lê as variáveis de ambiente na inicialização
+        this.adminUsername = System.getenv().getOrDefault("SPRING_SECURITY_USER_NAME", "admin");
+
+        String rawAdminPassword = System.getenv().getOrDefault("SPRING_SECURITY_USER_PASSWORD", "admin123");
+
+        // Gera o hash da senha do admin para permitir comparação segura via BCrypt
+        this.adminPasswordHash = BCrypt.hashpw(rawAdminPassword, BCrypt.gensalt());
+    }
 
     @Override
     public AuthResponse execute(AutenticarUsuarioCommand command) {
         String normalizedUsername = normalizeUsername(command.getUsername());
+        String password = command.getPassword();
 
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(normalizedUsername, command.getPassword())
-        );
 
-        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        String role = resolveRole(userDetails);
-        String token = generateTokenForUser(role, normalizedUsername, userDetails);
+        if (isAdminUser(normalizedUsername, password)) {
+            String role = "ADMIN";
+            String token = jwtTokenUtil.generateAdminToken(normalizedUsername);
+            return new AuthResponse(token, "Bearer", normalizedUsername, role);
+        }
+
+        Optional<Cliente> clienteOpt = clienteGateway.findByCpf(normalizedUsername)
+                .or(() -> clienteGateway.findByCnpj(normalizedUsername));
+
+        Cliente cliente = clienteOpt.orElseThrow(() ->
+                new IllegalArgumentException("Usuário ou senha inválidos"));
+
+        boolean senhaValida = BCrypt.checkpw(password, cliente.getSenhaHash());
+        if (!senhaValida) {
+            throw new IllegalArgumentException("Usuário ou senha inválidos");
+        }
+
+        String role = resolveRole(cliente);
+        String token = generateTokenForUser(role, normalizedUsername, cliente);
 
         return new AuthResponse(token, "Bearer", normalizedUsername, role);
     }
@@ -51,16 +72,11 @@ public class AutenticarUsuarioUseCase implements AutenticarUsuarioInput {
         return username;
     }
 
-    private String resolveRole(UserDetails userDetails) {
-        return userDetails.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .filter(auth -> auth.startsWith("ROLE_"))
-                .map(auth -> auth.substring(5))
-                .findFirst()
-                .orElse("USER");
+    private String resolveRole(Cliente cliente) {
+        return "CLIENTE";
     }
 
-    private String generateTokenForUser(String role, String normalizedUsername, UserDetails userDetails) {
+    private String generateTokenForUser(String role, String normalizedUsername, Cliente userDetails) {
         if ("CLIENTE".equals(role)) {
             Optional<Cliente> clienteOpt = clienteGateway.findByCpf(normalizedUsername)
                     .or(() -> clienteGateway.findByCnpj(normalizedUsername));
@@ -69,6 +85,13 @@ public class AutenticarUsuarioUseCase implements AutenticarUsuarioInput {
             return jwtTokenUtil.generateClienteToken(normalizedUsername, nome, clienteId);
         }
 
-        return jwtTokenUtil.generateToken(userDetails);
+        return jwtTokenUtil.generateAdminToken(normalizedUsername);
+    }
+
+    private boolean isAdminUser(String username, String password) {
+        if (this.adminUsername.equals(username)) {
+            return BCrypt.checkpw(password, this.adminPasswordHash);
+        }
+        return false;
     }
 }

@@ -1,21 +1,12 @@
 package com.techchallenge.lambda.authorizer.web.dto;
 
 import com.techchallenge.lambda.authorizer.application.usecases.responses.AuthResponse;
-import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(description = "Resposta de autenticação com token JWT")
 public class AuthResponseDto {
 
-    @Schema(description = "Token JWT para autenticação nas requisições subsequentes")
     private String token;
-
-    @Schema(description = "Tipo do token", example = "Bearer")
     private String type;
-
-    @Schema(description = "Nome de usuário autenticado")
     private String username;
-
-    @Schema(description = "Role do usuário autenticado", example = "ADMIN")
     private String role;
 
     public static AuthResponseDto from(AuthResponse response) {

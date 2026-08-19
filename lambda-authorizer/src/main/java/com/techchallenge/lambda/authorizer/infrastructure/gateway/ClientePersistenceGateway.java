@@ -5,16 +5,16 @@ import com.techchallenge.lambda.authorizer.domain.model.Cliente;
 import com.techchallenge.lambda.authorizer.domain.model.valueobjects.CNPJ;
 import com.techchallenge.lambda.authorizer.domain.model.valueobjects.CPF;
 import com.techchallenge.lambda.authorizer.domain.repositories.ClienteRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
-@Repository
-@RequiredArgsConstructor
 public class ClientePersistenceGateway implements ClienteGateway {
 
     private final ClienteRepository clienteRepository;
+
+    public ClientePersistenceGateway(ClienteRepository clienteRepository) {
+        this.clienteRepository = clienteRepository;
+    }
 
     @Override
     public Optional<Cliente> findByCpf(String cpf) {
