@@ -166,6 +166,7 @@ jobs:
         run: |
           cd ${{ env.TERRAFORM_DIR }}
           terraform plan \
+            -var="account_id=$ACCOUNT_ID" \
             -var="db_url=jdbc:mysql://${RDS_ENDPOINT}:3306/oficina" \
             -var="db_user=${{ secrets.DB_USERNAME }}" \
             -var="db_password=$DB_PASSWORD" \
@@ -184,6 +185,7 @@ jobs:
         run: |
           cd ${{ env.TERRAFORM_DIR }}
           terraform apply -auto-approve \
+            -var="account_id=$ACCOUNT_ID" \
             -var="db_url=jdbc:mysql://${RDS_ENDPOINT}:3306/oficina" \
             -var="db_user=${{ secrets.DB_USERNAME }}" \
             -var="db_password=$DB_PASSWORD" \
