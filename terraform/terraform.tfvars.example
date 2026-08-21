@@ -1,0 +1,24 @@
+# Exemplo de arquivo de variáveis para o Terraform
+# Copie este arquivo para terraform.tfvars e preencha com os valores reais
+
+region  = "us-east-1"
+app_name = "oficina"
+environment = "prod"
+
+# Variáveis sensíveis - devem ser preenchidas com valores reais
+db_url      = "jdbc:mysql://your-db-endpoint:3306/oficina"
+db_user     = "your-db-user"
+db_password = "your-db-password"
+jwt_secret  = "your-jwt-secret"
+
+# Tag da imagem no ECR
+image_tag = "latest"
+
+# Configuração do estado remoto do k8s-infra
+s3_bucket_k8s_infra = "bucket-tfstate-1029"
+s3_key_k8s_infra    = "k8s/terraform.tfstate"
+
+# Configuração de VPC (opcional - deixe vazio para rodar sem VPC)
+# Se precisar acessar RDS em subnets privadas, preencha com os valores do k8s-infra
+subnet_ids         = []
+security_group_ids = []

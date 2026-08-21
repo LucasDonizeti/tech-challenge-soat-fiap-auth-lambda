@@ -1,0 +1,56 @@
+server:
+  port: ${SPRING_PORT:8081}
+
+spring:
+  application:
+    name: ${SPRING_APPLICATION_NAME:Authorizer}
+    version: ${SPRING_APPLICATION_VERSION:Authorizer}
+
+  # Configurações do Swagger/OpenAPI - Conforme ADR-014
+  springdoc:
+    api-docs:
+      path: /v3/api-docs
+    swagger-ui:
+      path: /swagger-ui.html
+      enabled: true
+    show-actuator: false
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/oficina?useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${SPRING_DATASOURCE_USERNAME:user}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:com.mysql.cj.jdbc.Driver}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: ${SPRING_JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        dialect: ${SPRING_HIBERNATE_DIALECT:org.hibernate.dialect.MySQLDialect}
+        format_sql: true
+
+  security:
+    jwt:
+      secret: ${JWT_SECRET:mySuperSecretKeyForJWTTokenGenerationThatIsSecureEnough}
+      expiration: ${JWT_EXPIRATION:86400}
+
+    user:
+      name: ${SECURITY_USER_NAME:admin}
+      password: ${SECURITY_USER_PASSWORD:secret123}
+      roles: ${SECURITY_USER_ROLES:ADMIN}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    com.techchallenge.oficina: ${LOG_LEVEL:INFO}
+    org.springframework.security: ${SECURITY_LOG_LEVEL:WARN}
+    io.jsonwebtoken: ${JWT_LOG_LEVEL:WARN}
