@@ -70,3 +70,8 @@ variable "security_group_ids" {
   type        = list(string)
   default     = []
 }
+
+variable "account_id" {
+  description = "ID da Conta AWS"
+  type        = string
+}

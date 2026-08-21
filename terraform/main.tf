@@ -11,41 +11,6 @@ data "terraform_remote_state" "k8s_infra" {
   }
 }
 
-# ------------------------------------------------------------------------------
-# 2. IAM Role para Execução da Lambda
-# ------------------------------------------------------------------------------
-resource "aws_iam_role" "lambda_exec_role" {
-  name = "${var.app_name}-auth-lambda-exec-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "lambda.amazonaws.com"
-      }
-    }]
-  })
-
-  tags = {
-    Project     = var.app_name
-    Environment = var.environment
-  }
-}
-
-# Anexa a política básica para gravação de logs no CloudWatch
-resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
-  role       = aws_iam_role.lambda_exec_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-# Anexa a política para acesso à VPC (necessário para acessar RDS em subnets privadas)
-resource "aws_iam_role_policy_attachment" "lambda_vpc_execution" {
-  count      = length(var.subnet_ids) > 0 ? 1 : 0
-  role       = aws_iam_role.lambda_exec_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-}
 
 # Security Group para a Lambda (se precisar acessar recursos na VPC)
 resource "aws_security_group" "lambda_sg" {
@@ -76,7 +41,7 @@ locals {
 # ------------------------------------------------------------------------------
 resource "aws_lambda_function" "auth_lambda" {
   function_name = "${var.app_name}-auth-lambda"
-  role          = aws_iam_role.lambda_exec_role.arn
+  role          = "arn:aws:iam::${var.account_id}:role/LabRole"
   package_type  = "Image"
 
   # Usa a URL do ECR exportada pelo k8s-infra
