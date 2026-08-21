@@ -11,52 +11,22 @@ data "terraform_remote_state" "k8s_infra" {
   }
 }
 
-
-# Security Group para a Lambda (se precisar acessar recursos na VPC)
-resource "aws_security_group" "lambda_sg" {
-  count       = length(var.subnet_ids) > 0 && length(var.security_group_ids) == 0 ? 1 : 0
-  name        = "${var.app_name}-auth-lambda-sg"
-  description = "Security group para Lambda de autenticação"
-  vpc_id      = data.terraform_remote_state.k8s_infra.outputs.vpc_id
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Project     = var.app_name
-    Environment = var.environment
-  }
-}
-
-locals {
-  lambda_security_group_ids = length(var.security_group_ids) > 0 ? var.security_group_ids : (length(aws_security_group.lambda_sg) > 0 ? [aws_security_group.lambda_sg[0].id] : [])
-}
-
 # ------------------------------------------------------------------------------
-# 3. Função AWS Lambda (Container Image)
+# 2. Função AWS Lambda (Container Image)
 # ------------------------------------------------------------------------------
 resource "aws_lambda_function" "auth_lambda" {
   function_name = "${var.app_name}-auth-lambda"
   role          = "arn:aws:iam::${var.account_id}:role/LabRole"
   package_type  = "Image"
 
-  # Usa a URL do ECR exportada pelo k8s-infra
   image_uri = "${data.terraform_remote_state.k8s_infra.outputs.ecr_auth_lambda_url}:${var.image_tag}"
 
   memory_size = 512
   timeout     = 15
 
-  # Configuração de VPC (opcional - para acesso ao RDS em subnets privadas)
-  dynamic "vpc_config" {
-    for_each = length(var.subnet_ids) > 0 ? [1] : []
-    content {
-      subnet_ids         = var.subnet_ids
-      security_group_ids = local.lambda_security_group_ids
-    }
+  vpc_config {
+    subnet_ids         = data.terraform_remote_state.k8s_infra.outputs.private_subnets
+    security_group_ids = [data.terraform_remote_state.k8s_infra.outputs.eks_node_security_group_id]
   }
 
   environment {
@@ -75,7 +45,7 @@ resource "aws_lambda_function" "auth_lambda" {
 }
 
 # ------------------------------------------------------------------------------
-# 4. Permissão para o API Gateway Invocar a Lambda
+# 3. Permissão para o API Gateway Invocar a Lambda
 # ------------------------------------------------------------------------------
 resource "aws_lambda_permission" "apigw_lambda" {
   statement_id  = "AllowExecutionFromAPIGateway"
@@ -83,12 +53,11 @@ resource "aws_lambda_permission" "apigw_lambda" {
   function_name = aws_lambda_function.auth_lambda.function_name
   principal     = "apigateway.amazonaws.com"
 
-  # Libera chamadas vindas do API Gateway do k8s-infra
   source_arn = "${data.terraform_remote_state.k8s_infra.outputs.api_gateway_execution_arn}/*/*"
 }
 
 # ------------------------------------------------------------------------------
-# 5. Integração da Lambda com o API Gateway
+# 4. Integração da Lambda com o API Gateway
 # ------------------------------------------------------------------------------
 resource "aws_apigatewayv2_integration" "auth_lambda_integration" {
   api_id                 = data.terraform_remote_state.k8s_infra.outputs.api_gateway_id
@@ -98,10 +67,10 @@ resource "aws_apigatewayv2_integration" "auth_lambda_integration" {
 }
 
 # ------------------------------------------------------------------------------
-# 6. Rota POST /v1/auth no API Gateway
+# 5. Rota POST /v1/auth no API Gateway
 # ------------------------------------------------------------------------------
 resource "aws_apigatewayv2_route" "auth_route" {
   api_id    = data.terraform_remote_state.k8s_infra.outputs.api_gateway_id
-  route_key = "POST /v1/auth"
+  route_key = "POST /v1/auth/login"
   target    = "integrations/${aws_apigatewayv2_integration.auth_lambda_integration.id}"
 }
