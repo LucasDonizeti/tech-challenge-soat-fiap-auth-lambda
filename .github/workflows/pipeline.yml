@@ -116,6 +116,12 @@ jobs:
         with:
           terraform_version: 'latest'
 
+      - name: Buscar Account ID
+        id: account-info
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
+          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+
       - name: Buscar Endpoint do RDS
         id: rds-info
         run: |
@@ -145,6 +151,7 @@ jobs:
           IMAGE_TAG: ${{ needs.push-image-ecr.outputs.image_tag }}
           RDS_ENDPOINT: ${{ steps.rds-info.outputs.rds_endpoint }}
           DB_PASSWORD: ${{ steps.rds-secret.outputs.db_password }}
+          ACCOUNT_ID: ${{ steps.account-info.outputs.account_id }}
         run: |
           cd ${{ env.TERRAFORM_DIR }}
           terraform init
@@ -155,6 +162,7 @@ jobs:
           IMAGE_TAG: ${{ needs.push-image-ecr.outputs.image_tag }}
           RDS_ENDPOINT: ${{ steps.rds-info.outputs.rds_endpoint }}
           DB_PASSWORD: ${{ steps.rds-secret.outputs.db_password }}
+          ACCOUNT_ID: ${{ steps.account-info.outputs.account_id }}
         run: |
           cd ${{ env.TERRAFORM_DIR }}
           terraform plan \
@@ -172,6 +180,7 @@ jobs:
           IMAGE_TAG: ${{ needs.push-image-ecr.outputs.image_tag }}
           RDS_ENDPOINT: ${{ steps.rds-info.outputs.rds_endpoint }}
           DB_PASSWORD: ${{ steps.rds-secret.outputs.db_password }}
+          ACCOUNT_ID: ${{ steps.account-info.outputs.account_id }}
         run: |
           cd ${{ env.TERRAFORM_DIR }}
           terraform apply -auto-approve \
