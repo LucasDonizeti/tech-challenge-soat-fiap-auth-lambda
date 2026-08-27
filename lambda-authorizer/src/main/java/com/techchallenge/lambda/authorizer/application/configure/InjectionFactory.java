@@ -12,6 +12,8 @@ import com.techchallenge.lambda.authorizer.infrastructure.persistence.repositori
 import com.techchallenge.lambda.authorizer.infrastructure.persistence.repositories.ClienteJpaRepository;
 import com.techchallenge.lambda.authorizer.infrastructure.persistence.repositories.ClienteRepositoryImpl;
 import com.techchallenge.lambda.authorizer.infrastructure.security.JwtTokenUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 
@@ -20,6 +22,7 @@ import javax.sql.DataSource;
  * This class manages the creation and wiring of all dependencies required by the AuthLambdaHandler.
  */
 public class InjectionFactory {
+    private static final Logger logger = LoggerFactory.getLogger(InjectionFactory.class);
 
     private static ObjectMapper objectMapper;
     private static JwtTokenUtil jwtTokenUtil;
@@ -40,7 +43,9 @@ public class InjectionFactory {
      */
     public static ObjectMapper getObjectMapper() {
         if (objectMapper == null) {
+            logger.debug("Criando nova instância de ObjectMapper");
             objectMapper = new ObjectMapper();
+            logger.info("ObjectMapper inicializado com sucesso");
         }
         return objectMapper;
     }
@@ -51,7 +56,9 @@ public class InjectionFactory {
      */
     public static JwtTokenUtil getJwtTokenUtil() {
         if (jwtTokenUtil == null) {
+            logger.debug("Criando nova instância de JwtTokenUtil");
             jwtTokenUtil = new JwtTokenUtil();
+            logger.info("JwtTokenUtil inicializado com sucesso");
         }
         return jwtTokenUtil;
     }
@@ -63,6 +70,7 @@ public class InjectionFactory {
      * @return the DataSource instance, or null if not set
      */
     public static DataSource getDataSource() {
+        logger.debug("Obtendo DataSource via DataSourceConfig");
         return DataSourceConfig.createDataSource();
     }
 
@@ -74,11 +82,14 @@ public class InjectionFactory {
      */
     public static ClienteJpaRepository getClienteJpaRepository() {
         if (clienteJpaRepository == null) {
+            logger.debug("Criando nova instância de ClienteJpaRepository");
             if (dataSource == null) {
+                logger.debug("DataSource não inicializado, obtendo via getDataSource()");
                 dataSource = getDataSource();
                 //throw new IllegalStateException("DataSource must be set before creating ClienteJpaRepository. Call setDataSource() first.");
             }
             clienteJpaRepository = new ClienteJdbcRepository(dataSource);
+            logger.info("ClienteJpaRepository inicializado com sucesso");
         }
         return clienteJpaRepository;
     }
@@ -89,7 +100,9 @@ public class InjectionFactory {
      */
     public static ClienteJpaMapper getClienteJpaMapper() {
         if (clienteJpaMapper == null) {
+            logger.debug("Criando nova instância de ClienteJpaMapper");
             clienteJpaMapper = new ClienteJpaMapper();
+            logger.info("ClienteJpaMapper inicializado com sucesso");
         }
         return clienteJpaMapper;
     }
@@ -100,10 +113,12 @@ public class InjectionFactory {
      */
     public static ClienteRepository getClienteRepository() {
         if (clienteRepository == null) {
+            logger.debug("Criando nova instância de ClienteRepository");
             clienteRepository = new ClienteRepositoryImpl(
                     getClienteJpaRepository(),
                     getClienteJpaMapper()
             );
+            logger.info("ClienteRepository inicializado com sucesso");
         }
         return clienteRepository;
     }
@@ -114,9 +129,11 @@ public class InjectionFactory {
      */
     public static ClienteGateway getClienteGateway() {
         if (clienteGateway == null) {
+            logger.debug("Criando nova instância de ClienteGateway");
             clienteGateway = new ClientePersistenceGateway(
                     getClienteRepository()
             );
+            logger.info("ClienteGateway inicializado com sucesso");
         }
         return clienteGateway;
     }
@@ -127,10 +144,12 @@ public class InjectionFactory {
      */
     public static AutenticarUsuarioInput getAutenticarUsuarioInput() {
         if (autenticarUsuarioInput == null) {
+            logger.debug("Criando nova instância de AutenticarUsuarioInput");
             autenticarUsuarioInput = new AutenticarUsuarioUseCase(
                     getJwtTokenUtil(),
                     getClienteGateway()
             );
+            logger.info("AutenticarUsuarioInput inicializado com sucesso");
         }
         return autenticarUsuarioInput;
     }
@@ -140,6 +159,7 @@ public class InjectionFactory {
      * This method is primarily useful for testing purposes to ensure clean state between tests.
      */
     public static void reset() {
+        logger.info("Resetando todas as instâncias singleton do InjectionFactory");
         objectMapper = null;
         jwtTokenUtil = null;
         clienteJpaRepository = null;
@@ -147,5 +167,6 @@ public class InjectionFactory {
         clienteRepository = null;
         clienteGateway = null;
         autenticarUsuarioInput = null;
+        logger.info("Instâncias singleton resetadas com sucesso");
     }
 }
