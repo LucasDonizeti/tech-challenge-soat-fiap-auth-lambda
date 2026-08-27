@@ -74,6 +74,58 @@ terraform apply
 - `subnet_ids` - IDs das subnets onde a Lambda será executada (opcional, para acesso VPC)
 - `security_group_ids` - IDs dos security groups para a Lambda (opcional, para acesso VPC)
 
+## 🔍 Análise Estática de Código com SonarQube
+
+O SonarQube analisa o código em busca de bugs, vulnerabilidades, code smells e duplicações.
+
+### 1. Subir o SonarQube localmente
+
+Você pode iniciar a instância local do SonarQube usando o Docker Compose do projeto principal:
+
+```bash
+cd ../tech-challenge-soat-fiap
+docker-compose up -d sonar sonar_db
+```
+
+Acesse o painel em: **http://localhost:9000**
+- **Usuário padrão:** `admin`
+- **Senha padrão:** `admin` *(o SonarQube exigirá a troca de senha no primeiro acesso)*
+
+### 2. Rodar a Análise do Sonar
+
+Gere um Token de Acesso (User Token) no painel do SonarQube e execute o comando Maven abaixo substituindo pelas suas variáveis:
+
+```bash
+export SONAR_TOKEN=seu_token_sonar
+export SONAR_HOST_URL=http://localhost:9000
+
+cd lambda-authorizer
+mvn clean verify sonar:sonar \
+  -Dsonar.projectKey=lambda-authorizer \
+  -Dsonar.projectName='lambda-authorizer' \
+  -Dsonar.host.url=$SONAR_HOST_URL \
+  -Dsonar.token=$SONAR_TOKEN
+```
+
+### Configurações Adicionais
+
+Para ambientes de produção ou CI/CD, você pode configurar variáveis de ambiente adicionais:
+
+- `SONAR_EXCLUSIONS` - Arquivos/diretórios a serem excluídos da análise
+- `SONAR_COVERAGE_EXCLUSIONS` - Arquivos/diretórios a serem excluídos da análise de cobertura
+- `SONAR_JAVA_SOURCE` - Versão do Java (default: 21)
+
+Exemplo:
+```bash
+mvn clean verify sonar:sonar \
+  -Dsonar.projectKey=lambda-authorizer \
+  -Dsonar.projectName='lambda-authorizer' \
+  -Dsonar.host.url=$SONAR_HOST_URL \
+  -Dsonar.token=$SONAR_TOKEN \
+  -Dsonar.exclusions=**/generated/**,**/dto/** \
+  -Dsonar.coverage.exclusions=**/dto/**,**/config/**
+```
+
 ## Configuração de VPC
 
 A Lambda pode ser configurada de duas formas:
