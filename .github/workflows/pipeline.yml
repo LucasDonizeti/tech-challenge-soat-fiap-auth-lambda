@@ -2,7 +2,7 @@ name: CI/CD Pipeline - Auth Lambda
 
 on:
   push:
-    branches: [ "develop" ]
+    branches: [ "main" ]
   #push:
   #  branches: [ "main" ]
   #pull_request:

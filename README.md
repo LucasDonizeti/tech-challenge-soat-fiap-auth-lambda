@@ -1,141 +1,139 @@
-# tech-challenge-soat-fiap-auth-lambda
+# 🔐 tech-challenge-soat-fiap-auth-lambda
 
-Projeto de infraestrutura Terraform para deploy da Lambda de autenticação que integra com o API Gateway do projeto k8s-infra.
+Lambda Authorizer do **Sistema de Gestão de Oficina** — responsável pela geração de tokens JWT no endpoint `POST /v1/auth/login`.
 
-## Estrutura
+Este repositório é o **quarto e último** da cadeia de provisionamento. Ele cria a função Lambda, integra ao API Gateway já existente (provisionado pelo `k8s-infra`) e conecta ao RDS MySQL (provisionado pelo `db-infra`).
 
-- `lambda-authorizer/` - Código fonte da Lambda em Java (Spring Boot)
-- `terraform/` - Infraestrutura Terraform para deploy da Lambda
+---
 
-## Como Funciona
+## 📑 Documentação
 
-1. Consulta o estado remoto do projeto `k8s-infra` via S3 para obter:
-   - URL do repositório ECR (`ecr_auth_lambda_url`)
-   - ID do API Gateway (`api_gateway_id`)
-   - ARN de execução do API Gateway (`api_gateway_execution_arn`)
+| Documento | Descrição |
+|-----------|-----------|
+| [Pré-requisitos](docs/prerequisitos.md) | Java 21, Maven, Docker, AWS CLI, Terraform e credenciais |
+| [Build e Testes Locais](docs/build-local.md) | Como compilar, testar e rodar localmente |
+| [Provisionamento Manual](docs/provisionamento-manual.md) | Passo a passo do Terraform para deploy da Lambda |
+| [Pipeline CI/CD](docs/pipeline.md) | Como funciona a pipeline e os GitHub Secrets necessários |
+| [Recursos Provisionados](docs/recursos-provisionados.md) | Inventário da Lambda e integração API Gateway |
+| [Fluxo de Autenticação](docs/fluxo-autenticacao.md) | Como funciona o login, geração de JWT e validação |
+| [Comandos Úteis](docs/comandos-uteis.md) | AWS CLI para Lambda, testes de endpoint e Maven |
 
-2. Cria a função AWS Lambda usando imagem de container do ECR
+---
 
-3. Configura permissões IAM para o API Gateway invocar a Lambda
+## ⚡ Visão Rápida
 
-4. Cria integração da Lambda com o API Gateway
-
-5. Adiciona rota `POST /v1/auth` no API Gateway que direciona para a Lambda
-
-## Pipeline CI/CD
-
-A pipeline do GitHub Actions executa os seguintes passos:
-
-1. **Build & Test**: Compila o projeto Java com Maven e executa testes
-2. **Build & Push Docker Image**: Cria a imagem Docker usando o JAR pré-compilado e publica no ECR
-3. **Deploy Terraform**: Aplica a infraestrutura Terraform para criar/atualizar a Lambda
-
-**Nota Técnica**: O Dockerfile está localizado em `lambda-authorizer/Dockerfile` e usa o JAR pré-compilado pelo Job 1. O comando `docker build` usa a flag `-f` para especificar explicitamente o caminho do Dockerfile.
-
-## Rotas do API Gateway
-
-- `POST /v1/auth` → Lambda de autenticação
-- `ANY /{proxy+}` → EKS (aplicação principal)
-
-## Pré-requisitos
-
-- Terraform >= 1.6.0
-- AWS CLI configurado
-- Bucket S3 com estado do k8s-infra
-- Imagem da Lambda publicada no ECR
-
-## Como Usar
-
-1. Configure as variáveis:
-```bash
-cp terraform/terraform.tfvars.example terraform/terraform.tfvars
-# Edite terraform.tfvars com seus valores reais
+```
+Cliente → POST /v1/auth/login
+              │
+              ▼
+    API Gateway HTTP v2
+    (rota dedicada: POST /v1/auth/login → AWS_PROXY)
+              │
+              ▼
+    Auth Lambda (Java 21, Container Image)
+    ├── Admin?  → BCrypt.checkpw(env vars) → JWT ADMIN
+    └── CPF/CNPJ? → JDBC → RDS MySQL → BCrypt → JWT CLIENTE
+              │
+              ▼
+    { "token": "eyJ...", "type": "Bearer", "username": "..." }
 ```
 
-2. Inicialize o Terraform:
-```bash
-cd terraform
-terraform init
+---
+
+## 🔗 Arquitetura
+
+```
+Internet
+    │
+    ▼
+API Gateway HTTP v2
+    │  POST /v1/auth/login → AWS_PROXY integration
+    ▼
+Lambda: oficina-auth-lambda
+    ├── Runtime: Java 21 (Container Image)
+    ├── Memória: 512 MB · Timeout: 15s
+    ├── VPC: Private Subnets (acesso ao RDS)
+    ├── SG: eks_node_security_group (permite 3306 no RDS)
+    └── Env vars: DB_URL, DB_USER, DB_PASSWORD, JWT_SECRET
+              │
+              ▼  (apenas para login CPF/CNPJ)
+    RDS MySQL — oficina-rds:3306
 ```
 
-3. Planeje e aplique:
-```bash
-terraform plan
-terraform apply
+---
+
+## 🗂️ Estrutura do Repositório
+
+```
+.
+├── .github/
+│   └── workflows/
+│       └── pipeline.yml              # Pipeline CI/CD (Build → ECR → Terraform)
+├── lambda-authorizer/                # Código-fonte Java da Lambda
+│   ├── src/
+│   │   ├── main/java/com/techchallenge/lambda/authorizer/
+│   │   │   ├── application/
+│   │   │   │   ├── configure/        # InjectionFactory (DI sem Spring)
+│   │   │   │   ├── ports/            # AuthLambdaHandler (entry point)
+│   │   │   │   └── usecases/         # AutenticarUsuarioUseCase
+│   │   │   ├── domain/model/         # Cliente (entidade)
+│   │   │   ├── infrastructure/
+│   │   │   │   ├── persistence/      # ClienteJdbcGateway (JDBC direto)
+│   │   │   │   └── security/         # JwtTokenUtil (JJWT 0.13.0)
+│   │   │   └── web/dto/              # AuthRequestDto, AuthResponseDto
+│   │   └── resources/
+│   │       ├── application.yaml
+│   │       └── logback.xml
+│   ├── Dockerfile                    # FROM public.ecr.aws/lambda/java:21
+│   └── pom.xml                       # Java 21, sem Spring Boot
+├── terraform/
+│   ├── main.tf                       # Lambda + API GW integration + route
+│   ├── variables.tf                  # db_url, db_user, db_password, jwt_secret, image_tag...
+│   ├── outputs.tf                    # lambda_arn, lambda_function_name
+│   ├── backend.tf                    # State: auth-lambda/terraform.tfstate
+│   ├── provider.tf                   # AWS ~> 6.0
+│   └── terraform.tfvars.example      # Exemplo de variáveis
+└── docs/                             # Documentação detalhada
 ```
 
-## Variáveis Principais
+---
 
-- `db_url`, `db_user`, `db_password` - Credenciais do banco de dados
-- `jwt_secret` - Segredo para geração de tokens JWT
-- `image_tag` - Tag da imagem no ECR a ser utilizada
-- `s3_bucket_k8s_infra` - Bucket S3 com estado do k8s-infra (default: bucket-tfstate-1029)
-- `s3_key_k8s_infra` - Caminho do estado do k8s-infra no bucket (default: k8s/terraform.tfstate)
-- `subnet_ids` - IDs das subnets onde a Lambda será executada (opcional, para acesso VPC)
-- `security_group_ids` - IDs dos security groups para a Lambda (opcional, para acesso VPC)
+## 🔄 Ordem de Provisionamento
 
-## 🔍 Análise Estática de Código com SonarQube
-
-O SonarQube analisa o código em busca de bugs, vulnerabilidades, code smells e duplicações.
-
-### 1. Subir o SonarQube localmente
-
-Você pode iniciar a instância local do SonarQube usando o Docker Compose do projeto principal:
-
-```bash
-cd ../tech-challenge-soat-fiap
-docker-compose up -d sonar sonar_db
+```
+[1] k8s-infra   →  VPC + EKS + ECR + API GW     ✅ deve estar pronto
+[2] db-infra    →  RDS MySQL                      ✅ deve estar pronto
+[3] Aplicação   →  Helm → EKS (pode ser paralelo)
+[4] auth-lambda →  Lambda + rota API GW           ← ESTE REPOSITÓRIO
 ```
 
-Acesse o painel em: **http://localhost:9000**
-- **Usuário padrão:** `admin`
-- **Senha padrão:** `admin` *(o SonarQube exigirá a troca de senha no primeiro acesso)*
+> ⚠️ O `k8s-infra` deve estar provisionado (para obter ECR URL, API GW ID e subnets). O `db-infra` deve ter o RDS rodando (para o `DB_URL` e senha).
 
-### 2. Rodar a Análise do Sonar
+---
 
-Gere um Token de Acesso (User Token) no painel do SonarQube e execute o comando Maven abaixo substituindo pelas suas variáveis:
+## 🛠️ Tecnologias
 
-```bash
-export SONAR_TOKEN=seu_token_sonar
-export SONAR_HOST_URL=http://localhost:9000
+| Tecnologia | Versão | Uso |
+|-----------|--------|-----|
+| Java | 21 (Corretto) | Runtime da Lambda |
+| Maven | 3.9.x | Build e testes |
+| AWS Lambda Java Core | 1.2.3 | Handler e Context |
+| AWS Lambda Java Events | 3.11.4 | APIGatewayProxyRequestEvent |
+| JJWT | 0.13.0 | Geração de tokens JWT (HS256) |
+| jBCrypt | 0.4 | Hash e verificação de senhas |
+| MySQL Connector/J | 9.7.0 | Conexão JDBC ao RDS |
+| Jackson Databind | 2.17.0 | Serialização JSON |
+| Lombok | 1.18.44 | Redução de boilerplate |
+| SLF4J + Logback | 2.0.17 / 1.4.14 | Logging |
+| maven-shade-plugin | 3.6.2 | Fat JAR para a Lambda |
+| Terraform | >= 1.6.0 | Provisionamento da Lambda |
+| AWS Provider (TF) | ~> 6.0 | Recursos AWS |
 
-cd lambda-authorizer
-mvn clean verify sonar:sonar \
-  -Dsonar.projectKey=lambda-authorizer \
-  -Dsonar.projectName='lambda-authorizer' \
-  -Dsonar.host.url=$SONAR_HOST_URL \
-  -Dsonar.token=$SONAR_TOKEN
-```
+---
 
-### Configurações Adicionais
+## 🔗 Links Relacionados
 
-Para ambientes de produção ou CI/CD, você pode configurar variáveis de ambiente adicionais:
-
-- `SONAR_EXCLUSIONS` - Arquivos/diretórios a serem excluídos da análise
-- `SONAR_COVERAGE_EXCLUSIONS` - Arquivos/diretórios a serem excluídos da análise de cobertura
-- `SONAR_JAVA_SOURCE` - Versão do Java (default: 21)
-
-Exemplo:
-```bash
-mvn clean verify sonar:sonar \
-  -Dsonar.projectKey=lambda-authorizer \
-  -Dsonar.projectName='lambda-authorizer' \
-  -Dsonar.host.url=$SONAR_HOST_URL \
-  -Dsonar.token=$SONAR_TOKEN \
-  -Dsonar.exclusions=**/generated/**,**/dto/** \
-  -Dsonar.coverage.exclusions=**/dto/**,**/config/**
-```
-
-## Configuração de VPC
-
-A Lambda pode ser configurada de duas formas:
-
-1. **Sem VPC (padrão)**: A Lambda roda fora da VPC e acessa o RDS via internet
-   - Deixe `subnet_ids` e `security_group_ids` vazios (`[]`)
-   - Apenas a política `AWSLambdaBasicExecutionRole` é anexada
-
-2. **Com VPC**: A Lambda roda dentro da VPC para acesso direto ao RDS em subnets privadas
-   - Preencha `subnet_ids` com as subnets privadas do k8s-infra
-   - Preencha `security_group_ids` ou deixe vazio para criar automaticamente
-   - A política `AWSLambdaVPCAccessExecutionRole` também é anexada
-   - Um security group é criado automaticamente se `security_group_ids` estiver vazio
+- [k8s-infra](../tech-challenge-soat-fiap-k8s-infra) — cria o API Gateway e ECR `auth-lambda`
+- [db-infra](../tech-challenge-soat-fiap-db-infra) — cria o RDS acessado pela Lambda
+- [Repositório principal — oficina-api](../tech-challenge-soat-fiap) — valida os tokens JWT gerados aqui
+- [Swagger UI](https://<API_GATEWAY_URL>/swagger-ui/index.html) *(após deploy da app)*
