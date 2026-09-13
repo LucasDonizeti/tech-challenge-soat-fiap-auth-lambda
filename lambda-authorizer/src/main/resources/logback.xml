@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logs estruturados em JSON com Correlation ID — Lambda Authorizer
+  Usa logback-classic com PatternLayout que emite JSON manualmente.
+  Configuração otimizada para AWS Lambda (sem dependências do Spring).
+-->
+<configuration>
+
+    <property name="appName" value="lambda-authorizer"/>
+    <property name="appEnv" value="${LAMBDA_ENV:-default}"/>
+
+    <!-- ===================== CONSOLE – JSON estruturado ===================== -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <!--
+              Emite cada linha de log como um objeto JSON com os campos:
+                timestamp, level, correlationId, logger, thread, message
+              O correlationId vem do MDC (chave "correlationId").
+            -->
+            <pattern>{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}","level":"%-5level","app":"${appName}","env":"${appEnv}","correlationId":"%X{correlationId:-NONE}","logger":"%logger{40}","thread":"%thread","message":"%replace(%msg%n%ex{full}){'[\r\n]+','\\n'}"}%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- ===================== ROOT ===================== -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <!-- Configuração por pacote -->
+    <logger name="com.techchallenge.lambda.authorizer" level="${LOG_LEVEL:-INFO}"/>
+    <logger name="io.jsonwebtoken" level="${JWT_LOG_LEVEL:-WARN}"/>
+    <logger name="com.mysql.cj" level="${MYSQL_LOG_LEVEL:-WARN}"/>
+
+</configuration>
